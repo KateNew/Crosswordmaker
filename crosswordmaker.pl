@@ -9,7 +9,7 @@ mainMaker(InputFile,OutputFile,Width,Secret):-
     string_chars(Secret,SecretChars),
     length(SecretChars,Height),
     makeCrossword(WordsList,SecretChars,Width,Height,SquaresList,KeyList),
-    drawTable(SquaresList,Width,Height,KeyList,Table),
+    drawTable(SquaresList,Height,Table),
     reverse(Table,Output),
     listToFile(OutputFile,Output).
 
@@ -30,9 +30,8 @@ rowsToWordsList([row(Key,Answer)|RowT],[(Key,Chars)|WordsListT]):-
 makeCrossword(WordsList,SecretChars,Width,Height,SquaresList,KeysList):-
     listNtoM(1,Width,List),
     member(Y1,List),
-    placeWord1(SecretChars,(1,Y1),vertical,WordSquares),
-    makeCrossword1(WordsList,Width,Height,WordSquares,SquaresList,KeysList),
-    complete(KeysList,Height),!.
+    makeCrossword1([("tajenka",SecretChars)||WordsList],Width,Height,WordSquares,SquaresList,KeysList),
+    complete(KeysList,Width,Height),!.
 
 %makeCrossword1(+WordsList, +Width, +Height, +Acumulator, -SquaresList, -KeyList)
 makeCrossword1([],_,_,A,A,[]).
@@ -54,6 +53,13 @@ placeWord(ListOfChars,Width,Height,WordSquares):-
     member(X,XList),
     member(Y,YList),
     placeWord1(ListOfChars, (X,Y),horizontal,WordSquares).
+placeWord(ListOfChars,Width,Height,WordSquares):-
+    length(ListOfChars, Len),
+    listNtoM(1,Width-Len+1,YList),
+    listNtoM(1,Height,XList),
+    member(X,XList),
+    member(Y,YList),
+    placeWord1(ListOfChars, (X,Y),vertical,WordSquares).
 placeWord(_,_,_,[]).
 
 %placeWord1(+CharsList,+(X,Y),+Direction,-WordSquares)    
@@ -79,46 +85,41 @@ listNtoM(N,M,[N|List]):-
 %legalWord(+WordSquares,+SquaresList)
 legalWord([],_).
 legalWord(WordSquares,SquareList):-
-    %Slovo musí protnout tajenku.
-    member((X,Y,Value,horizontal),WordSquares),
-    member((X,Y,Value,vertical),SquareList),
-    %Ve stejném řádku se nesmí vyskytovat jiné slovo.
-    member((X1,_,_,horizontal),WordSquares),
-    \+member((X1,_,_,horizontal),SquareList).
+    member((X1,Y1,L,horizontal),WordSquares),
+    member((X1,Y1,L,vertical),SquareList),!.
+legalWord(WordSquares,SquareList):-
+    member((X1,Y1,L,vertical),WordSquares),
+    member((X1,Y1,L,horizontal),SquareList),!.
+legalWord(WordSquares,SquareList):-
+    member((X1,Y1,_,_),WordSquares),
+    \+member((X1,Y1,_,_),SquareList),!.
 
 %addKey(+SquaresList, +OldKeysList, -NewKeysList)  
 addKey([],_,KeyList,KeyList).
 addKey([(X,_,_,_)|_],Key,KeyList,[(X,Key)|KeyList]).
 
 %complete(+KeysList, +Height)
-complete(KeysList,Height):-
-    length(KeysList,Len),
-    Len = Height.
+complete(SquareList,Width,Height):-
+    Size is Width * Height,
+    length(SquareList,Len),
+    Size == Len.
 
 %%%%% Vypsání výsledku %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%drawTable(+SquaresList,+Width,+Height,+KeysList,-Table)
-drawTable(_,_,0,_,[]):-!.    
-drawTable(SquaresList,Width,Height,KeyList,[(Key,ReverseRow)|Output]):-
-    member((Height,Key),KeyList),
-    drawRow(SquaresList,Height,Width,Row),
-    reverse(Row, ReverseRow),    
-    HeightR is Height -1,
-    drawTable(SquaresList,Width,HeightR,KeyList,Output).
+%drawTable(+SquaresList,+Height,-Table)
+drawTable([],0,[]):-!.
+drawTable(SquareList,X,[Row|Output]):-
+    findall((Y,L), member((X,Y,L,vertical),SquareList), RowBag),
+    findall((Y,L), \+member((X,_,L,_),SquareList),SquareListR),
+    sort(1,@>,RowBag,Sorted),
+    drawRow(Sorted,Row),
+    NX is X -1,
+    drawTable(SquareListR,NX,Output).
 
-%drawRow(+SquaresList, +Row, +Length, -RowList)
-drawRow(_,_,0,[]):-!.
-drawRow(SquaresList,Row,Length,[Value|OutputRow]):-
-    Length > 0,
-    member((Row,Length,Value,_),SquaresList),!,
-    LengthR is Length - 1,
-    drawRow(SquaresList,Row,LengthR,OutputRow).
 
-drawRow(SquaresList,Row,Length,[" "|OutputRow]):-
-    Length > 0,
-    \+member((Row,Length,_,_),SquaresList),!,
-    LengthR is Length - 1,
-    drawRow(SquaresList,Row,LengthR,OutputRow).
+%drawRow(+SquaresList, -RowList)
+drawRow([],[]).
+drawRow([[(_,L)|List],[L|Row]):-drawRow(List,Row).
 
 %writeList(+File, +List)
 writeList(_File, []) :- !.
